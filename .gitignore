@@ -1,0 +1,10 @@
+# Ignorar as dependências do Node.js (node_modules)
+node_modules/
+
+# Ignorar o executável do Electron para Windows, que é grande demais
+# Embora já esteja em node_modules, é bom ter certeza em alguns casos
+electron/dist/electron.exe
+
+# Ignorar logs e arquivos de sistema
+npm-debug.log*
+.DS_Store
