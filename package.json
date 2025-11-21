@@ -13,6 +13,17 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^X.Y.Z" 
-  }
+    "electron": "^25.9.8"
+  },
+  "dependencies": {
+    "react-router-dom": "^7.9.6"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oxyzinha/electron.git"
+  },
+  "bugs": {
+    "url": "https://github.com/oxyzinha/electron/issues"
+  },
+  "homepage": "https://github.com/oxyzinha/electron#readme"
 }

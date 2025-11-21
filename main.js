@@ -1,39 +1,47 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
-function createWindow () {
-  // Cria a janela principal
-  const win = new BrowserWindow({
-    width: 800,
-    height: 600,
+// Declarar win fora para usar noutras funções
+let win;
+
+function createWindow() {
+  win = new BrowserWindow({
+    width: 1300,
+    height: 850,
     webPreferences: {
-      // Configurações de segurança/ambiente (essenciais para um projeto real)
       nodeIntegration: true,
-      contextIsolation: false
-    }
+      contextIsolation: false, // Permite comunicação IPC fácil (dev)
+    },
   });
 
-  // Carrega o arquivo HTML na janela
-  win.loadFile('index.html');
-
-  // Opcional: Abre as Ferramentas do Desenvolvedor automaticamente
-  // win.webContents.openDevTools();
+  // Em desenvolvimento: abre React em localhost (certifica-te que npm start está a correr em app-react)
+  win.loadURL('http://localhost:3000');
+  // Para produção depois do build:
+  // win.loadFile(path.join(__dirname, 'app-react/build/index.html'));
 }
 
-// Quando o Electron estiver pronto, cria a janela
 app.whenReady().then(createWindow);
 
-// Evento para fechar a aplicação quando todas as janelas forem fechadas
 app.on('window-all-closed', () => {
-  // Mantém a aplicação rodando no macOS mesmo sem janelas abertas
+  // No Windows/Linux fecha tudo, no Mac não fecha logo
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
-// Evento para recriar a janela no macOS quando o ícone for clicado no dock
 app.on('activate', () => {
+  // No Mac: reabrir janela se não existir
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
+
+// Simular detecção automática de tarefas: envia evento para React a cada 15 segundos
+const tasks = ['estudo', 'foco', 'relax', 'happy'];
+setInterval(() => {
+  if (win && win.webContents) {
+    const task = tasks[Math.floor(Math.random() * tasks.length)];
+    win.webContents.send('task-changed', task);
+    console.log(`Task changed (simulada): ${task}`);
+  }
+}, 15000);
