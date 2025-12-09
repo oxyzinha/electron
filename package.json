@@ -16,6 +16,7 @@
     "electron": "^25.9.8"
   },
   "dependencies": {
+    "dotenv": "^17.2.3",
     "react-router-dom": "^7.9.6"
   },
   "repository": {

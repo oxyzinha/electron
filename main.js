@@ -1,7 +1,11 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+require('dotenv').config(); // para ler SUNO_API_KEY do .env
 
-// Declarar win fora para usar noutras funções
+console.log('SUNO_API_KEY no main:', process.env.SUNO_API_KEY ? 'OK' : 'NÃO LIDA');
+
+const { generateSunoTrack, getMusicDetails } = require('./electron/sunoClient');
+
 let win;
 
 function createWindow() {
@@ -9,34 +13,55 @@ function createWindow() {
     width: 1300,
     height: 850,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false, // Permite comunicação IPC fácil (dev)
-    },
+      preload: path.join(__dirname, 'electron', 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true
+    }
   });
 
-  // Em desenvolvimento: abre React em localhost (certifica-te que npm start está a correr em app-react)
+  // Dev
   win.loadURL('http://localhost:3000');
-  // Para produção depois do build:
+  // Prod:
   // win.loadFile(path.join(__dirname, 'app-react/build/index.html'));
 }
 
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
-  // No Windows/Linux fecha tudo, no Mac não fecha logo
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
 app.on('activate', () => {
-  // No Mac: reabrir janela se não existir
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
 
-// Simular detecção automática de tarefas: envia evento para React a cada 15 segundos
+// IPC para Suno - criar tarefa
+ipcMain.handle('suno:generate', async (event, { prompt, options }) => {
+  try {
+    const result = await generateSunoTrack(prompt, options);
+    return result;
+  } catch (err) {
+    console.error('Erro no IPC Suno generate:', err);
+    throw err;
+  }
+});
+
+// IPC para Suno - obter detalhes da música
+ipcMain.handle('suno:getDetails', async (event, taskId) => {
+  try {
+    const result = await getMusicDetails(taskId);
+    return result;
+  } catch (err) {
+    console.error('Erro no IPC Suno getDetails:', err);
+    throw err;
+  }
+});
+
+// Simular detecção automática de tarefas
 const tasks = ['estudo', 'foco', 'relax', 'happy'];
 setInterval(() => {
   if (win && win.webContents) {
