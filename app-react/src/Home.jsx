@@ -1,258 +1,224 @@
-import React, { useEffect, useState } from 'react';
-import OnboardingIA from './components/OnboardingIA';
+// home.jsx V8 - SPOTIFY LAYOUT REVISADO COM SIDEBAR FIXA E SUNO NO TOPO
+import React, { useState, useEffect } from 'react';
+import './App.css';
 
-// Funções localStorage para guardar/obter histórico de playlists para tarefas
-function saveUserPlaylistForTask(task, playlistUri) {
-  const data = JSON.parse(localStorage.getItem('taskPlaylistMap') || '{}');
-  data[task] = playlistUri;
-  localStorage.setItem('taskPlaylistMap', JSON.stringify(data));
-}
-
-function getUserPlaylistForTask(task) {
-  const data = JSON.parse(localStorage.getItem('taskPlaylistMap') || '{}');
-  return data[task] || null;
-}
 
 function Home() {
-  const [preferences, setPreferences] = useState(null);
-  const [profile, setProfile] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [currentApp, setCurrentApp] = useState('focusbeat');
   const [playlists, setPlaylists] = useState([]);
+  const [recommendedPlaylists, setRecommendedPlaylists] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [tracks, setTracks] = useState([]);
-  const [mood, setMood] = useState('');
-  const [suggestedPlaylist, setSuggestedPlaylist] = useState(null);
   const [token, setToken] = useState(null);
-  const [iaMsg, setIaMsg] = useState(""); // Mensagem IA dinâmica
+  const [iaMsg, setIaMsg] = useState('');
 
-  // Fetch dados do Spotify e preferências locais
+  // Carrega dados
   useEffect(() => {
-    const savedPrefs = localStorage.getItem('user_preferences');
-    if (savedPrefs) setPreferences(JSON.parse(savedPrefs));
-
     const accessToken = localStorage.getItem('spotify_access_token');
-    if (!accessToken) return;
-    setToken(accessToken);
+    if (accessToken) setToken(accessToken);
 
-    // Buscar perfil
-    fetch('https://api.spotify.com/v1/me', {
-      headers: { Authorization: 'Bearer ' + accessToken }
-    })
-      .then(res => res.json())
-      .then(data => setProfile(data))
-      .catch(console.error);
+    // Fake playlists para demo
+    setPlaylists([
+      { id: '1', name: 'Minhas Favoritas', uri: 'spotify:playlist:37i9dQZF1DXcBWIGoYBM5M' },
+      { id: '2', name: 'Trap Brasil', uri: 'spotify:playlist:37i9dQZF1DX0XUsuxWHRQd' },
+      { id: '3', name: 'Foco Diário', uri: 'spotify:playlist:37i9dQZF1DX4sWSpwq3LiO' },
+    ]);
 
-    // Buscar playlists
-    fetch('https://api.spotify.com/v1/me/playlists', {
-      headers: { Authorization: 'Bearer ' + accessToken }
-    })
-      .then(res => res.json())
-      .then(data => setPlaylists(data.items || []))
-      .catch(console.error);
+    setRecommendedPlaylists([
+      { id: '4', name: 'Descobertas da Semana', cover: 'https://i.scdn.co/image/ab67616d00001e02d3e4f5g6h7i8j9k0l1m2n3o4p' },
+      { id: '5', name: 'Novidades Pop', cover: 'https://i.scdn.co/image/ab6761610000e5ebm1n2o3p4q5r6s7t8u9v0w1x2' },
+      { id: '6', name: 'Chill Hits', cover: 'https://i.scdn.co/image/ab6761610000e5eby3z4a5b6c7d8e9f0g1h2i3j4' },
+    ]);
   }, []);
 
-  // IPC Listener: muda mood automaticamente quando Electron deteta tarefa/contexto
-  useEffect(() => {
-    if (window.require) {
-      const { ipcRenderer } = window.require('electron');
-      ipcRenderer.on('task-changed', (event, task) => {
-        handleMoodSelect(task);
-        setIaMsg(`A IA detetou que mudaste de tarefa para "${task}" e atualizou tuas recomendações!`);
-      });
-    }
-    // eslint-disable-next-line
-  }, [playlists, preferences]);
+  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
-  // Buscar faixas de playlist selecionada
-  function fetchTracks(playlistId) {
-    fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
-      headers: { Authorization: 'Bearer ' + token }
-    })
-      .then(res => res.json())
-      .then(data => setTracks(data.items || []))
-      .catch(console.error);
-  }
+  const selectPlaylist = (playlist) => {
+    setTracks([]);
+    setIaMsg(`Carregando ${playlist.name}...`);
+    setTimeout(() => {
+      setTracks([
+        { name: 'Música 1', artist: 'Artista 1', duration: '3:24' },
+        { name: 'Música 2', artist: 'Artista 2', duration: '2:58' },
+      ]);
+      setIaMsg('');
+    }, 800);
+  };
 
-  // Lógica IA: recomenda/guarda playlist por tarefa (manual ou automática)
-  function handleMoodSelect(moodValue) {
-    setMood(moodValue);
-    setIaMsg(""); // Limpa mensagem anterior
-    if (!moodValue) {
-      setSuggestedPlaylist(null);
-      setTracks([]);
-      return;
-    }
-
-    // 1. Tenta sugerir do histórico local
-    const savedPlaylistUri = getUserPlaylistForTask(moodValue);
-    if (savedPlaylistUri) {
-      const pl = playlists.find(p => p.uri === savedPlaylistUri);
-      if (pl) {
-        setSuggestedPlaylist(pl);
-        fetchTracks(pl.id);
-        setIaMsg(`A IA sugeriu a playlist "${pl.name}" porque já usaste para ${moodValue}.`);
-        return;
-      }
-    }
-
-    // 2. Se não existir histórico, escolhe playlist pelo gosto/mood inicial
-    if (preferences) {
-      const found = playlists.find(pl =>
-        pl.name.toLowerCase().includes(moodValue.toLowerCase()) ||
-        pl.name.toLowerCase().includes(preferences.styles.toLowerCase())
-      );
-      if (found) {
-        setSuggestedPlaylist(found);
-        fetchTracks(found.id);
-        saveUserPlaylistForTask(moodValue, found.uri);
-        setIaMsg(`A IA selecionou "${found.name}" com base no teu gosto principal para ${moodValue}.`);
-      } else {
-        setSuggestedPlaylist(null);
-        setTracks([]);
-        setIaMsg("A IA não encontrou uma playlist perfeita, mas vai aprender mais com o tempo!");
-      }
-    }
-  }
+  const toggleApp = (app) => {
+    setCurrentApp(app);
+  };
 
   return (
-    !preferences ? (
-      <OnboardingIA onFinish={setPreferences} />
-    ) : (
-      <div style={{ textAlign: 'center', marginTop: 40 }}>
-        <h1>FocusBeat</h1>
-
-        {profile && (
-          <div>
-            <h2>Olá, {profile.display_name}</h2>
-            {profile.images && profile.images.length > 0 && (
-              <img
-                src={profile.images[0].url}
-                alt="Profile"
-                width="150"
-                style={{ borderRadius: '50%' }}
-              />
-            )}
-            <p>{profile.email}</p>
-          </div>
-        )}
-
-        {/* Seleção mood (manual, além de automática via Electron) */}
-        <div style={{ marginTop: 30 }}>
-          <h3>Escolhe a tua tarefa/mood</h3>
-          <select onChange={e => handleMoodSelect(e.target.value)} defaultValue="">
-            <option value="" disabled>Escolha...</option>
-            <option value="estudo">Estudo</option>
-            <option value="foco">Foco</option>
-            <option value="relax">Relax</option>
-            <option value="trap">Trap</option>
-            <option value="pop">Pop</option>
-            <option value="happy">Happy</option>
-          </select>
+    <div className="app-layout">
+      {/* HEADER */}
+      <header className="app-header">
+        <div className="menu-toggle" onClick={toggleSidebar}>
+          ☰
         </div>
-
-        {/* BLOCO VISUAL de mensagem IA dinâmica */}
-        {iaMsg && (
-          <div style={{ margin: "20px auto 0 auto", color: "#633bce", background: "#efe7ff", borderRadius: 8, padding: 8, maxWidth: 430 }}>
-            <b>🤖 IA:</b> {iaMsg}
-          </div>
-        )}
-
-        {/* Recomendações IA com feedback */}
-        {suggestedPlaylist && (
-          <div style={{
-            marginTop: 15,
-            border: "2px solid #7744ff",
-            borderRadius: 8,
-            background: "#f7f3ff",
-            padding: 12,
-            boxShadow: "0 0 8px #c3bcfd",
-            maxWidth: 400,
-            marginLeft: "auto",
-            marginRight: "auto"
-          }}>
-            <strong>💡 Sugestão da IA para "{mood}":</strong>
-            <br />
-            <span style={{ fontWeight: "bold" }}>{suggestedPlaylist.name}</span>
-            <br />
-            <a href={suggestedPlaylist.external_urls.spotify} target="_blank" rel="noopener noreferrer">
-              Abrir playlist no Spotify
-            </a>
-            <div style={{ marginTop: 8 }}>
-              <button
-                onClick={() => {
-                  alert("Obrigado pelo feedback! A IA vai aprender com as tuas escolhas.");
-                }}
-                style={{ background: "#8bfc79", border: "none", padding: "6px 12px", borderRadius: 6, cursor: "pointer" }}
-              >
-                Gostei 👍
-              </button>
-              <button
-                onClick={() => {
-                  alert("Vamos tentar outras sugestões! O sistema vai adaptar.");
-                }}
-                style={{ marginLeft: 10, background: "#ffbaba", border: "none", padding: "6px 12px", borderRadius: 6, cursor: "pointer" }}
-              >
-                Não gostei 👎
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Playlists do usuário */}
-        <div style={{ marginTop: 30 }}>
-          <h3>Tuas Playlists</h3>
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {playlists.map(pl => (
-              <li key={pl.id} style={{ marginBottom: 8 }}>
-                <button onClick={() => fetchTracks(pl.id)} style={{ cursor: 'pointer', padding: 5 }}>
-                  {pl.name}
-                </button>{' '}
-                <a href={pl.external_urls.spotify} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 6 }}>
-                  Abrir no Spotify
-                </a>
-              </li>
-            ))}
-          </ul>
+        <div className="search-bar">
+          <span className="search-icon">🔍</span>
+          <input
+            className="search-input"
+            placeholder="O que queres ouvir?"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
+        <div style={{ fontSize: '24px', cursor: 'pointer' }}>👤</div>
+      </header>
 
-        {/* Faixas da playlist */}
-        {tracks.length > 0 && (
-          <div>
-            <h3>Faixas</h3>
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              {tracks.map(i => (
-                <li key={i.track.id} style={{ marginBottom: 5 }}>
-                  {i.track.name} - {i.track.artists[0].name}{' '}
-                  <a href={i.track.external_urls.spotify} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 6 }}>
-                    Ouvir no Spotify
-                  </a>
-                </li>
+      {/* SIDEBAR FIXA À ESQUERDA */}
+      <aside className={`sidebar-left ${sidebarOpen ? '' : 'closed'}`}>
+        <div className="sidebar-logo">Minhas Playlists</div>
+        {playlists.map((playlist) => (
+          <div
+            key={playlist.id}
+            className="playlist-item"
+            onClick={() => selectPlaylist(playlist)}
+          >
+            {playlist.name}
+          </div>
+        ))}
+      </aside>
+
+      {/* SUNO MAIN PANEL - SÓ QUANDO ATIVO */}
+      {currentApp === 'suno' && (
+        <div className="suno-main-panel">
+          <h2 className="suno-title">✨ Gerar Música IA</h2>
+          <textarea
+            className="suno-prompt"
+            placeholder="Descreve tua música perfeita...&#10;Ex: 'trap suave com piano, relaxante para estudo'"
+            rows="4"
+          />
+          <button className="suno-generate">Gerar com IA</button>
+        </div>
+      )}
+
+      {/* MAIN CONTENT */}
+      <main className="main-content">
+        <div className="main-grid">
+          {/* RECOMENDADAS */}
+          <section className="recommended-section">
+            <h2 className="section-title">Para ti</h2>
+            <div className="playlist-grid">
+              {recommendedPlaylists.map((playlist) => (
+                <div
+                  key={playlist.id}
+                  className="playlist-card"
+                  onClick={() => selectPlaylist(playlist)}
+                >
+                  <div
+                    className="playlist-cover-small"
+                    style={{
+                      backgroundImage: `url(${playlist.cover})`,
+                      backgroundColor: '#181818'
+                    }}
+                  />
+                  <h3 className="playlist-name">{playlist.name}</h3>
+                </div>
               ))}
-            </ul>
-          </div>
+            </div>
+          </section>
+        </div>
+
+        {/* TRACKS LIST */}
+        {tracks.length > 0 && (
+          <section style={{ marginTop: '40px' }}>
+            <h2 className="section-title">Agora Tocando</h2>
+            <div className="tracks-list">
+              {tracks.map((track, index) => (
+                <div key={index} className="track-row">
+                  <span className="track-number">{index + 1}</span>
+                  <div>
+                    <div className="track-title">{track.name}</div>
+                    <div className="track-artist">{track.artist}</div>
+                  </div>
+                  <span className="track-duration">{track.duration}</span>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
-        {/* INSIGHTS DA IA */}
-        <div style={{
-          marginTop: 50,
-          background: "#e6f5ff",
-          padding: 20,
-          borderRadius: 8,
-          maxWidth: 500,
-          marginLeft: "auto",
-          marginRight: "auto",
-          boxShadow: "0 0 8px #bbcafd"
-        }}>
-          <h3>🧠 O que a IA aprendeu sobre ti:</h3>
-          <ul style={{ textAlign: 'left', margin: "0 auto", width: "fit-content", paddingLeft: 0 }}>
-            <li>Para <b>estudo</b>: {getUserPlaylistForTask("estudo") ? "Preferes a playlist " + (playlists.find(p => p.uri === getUserPlaylistForTask("estudo"))?.name || "customizada") : preferences?.styles || "Gosta de descobrir novos estilos"}.</li>
-            <li>Para <b>foco</b>: {getUserPlaylistForTask("foco") ? "Preferes " + (playlists.find(p => p.uri === getUserPlaylistForTask("foco"))?.name || "customizada") : preferences?.styles || "A IA ainda está a aprender"}.</li>
-            <li>Para <b>relax</b>: {getUserPlaylistForTask("relax") ? "Usa geralmente " + (playlists.find(p => p.uri === getUserPlaylistForTask("relax"))?.name || "customizada") : preferences?.styles || "Gosta de experimentar"}.</li>
-          </ul>
-          <div style={{ marginTop: 10, fontStyle: "italic", color: "#4f4fba" }}>
-            Este painel será atualizado à medida que vais usando o FocusBeat!
+        {/* IA MSG */}
+        {iaMsg && (
+          <div style={{ marginTop: '20px', padding: '16px', background: '#181818', borderRadius: '8px', color: '#1db954' }}>
+            {iaMsg}
+          </div>
+        )}
+      </main>
+
+      {/* PLAYER FULL WIDTH */}
+      <footer className="player-bar">
+        <div className="player-left">
+          <div
+            className="player-cover"
+            style={{ backgroundImage: 'url(https://i.scdn.co/image/ab67616d00001e02d3e4f5g6h7i8j9k0l1m2n3o4p)' }}
+          />
+          <div className="track-info">
+            <h3>{tracks[0]?.name || 'Seleciona uma playlist'}</h3>
+            <div className="track-artist">{tracks[0]?.artist || 'Artista'}</div>
+          </div>
+        </div>
+
+        <div className="player-controls">
+          <div className="control-buttons">
+            <button className="player-btn">⏮</button>
+            <button className="player-btn play-pause">⏸</button>
+            <button className="player-btn">⏭</button>
+          </div>
+          <div className="progress-container">
+            <span className="time-display">1:23</span>
+            <div className="progress-bar">
+              <div className="progress-fill"></div>
+            </div>
+            <span className="time-display">3:45</span>
+          </div>
+        </div>
+
+        <div className="player-right">
+          <button className="player-btn">🔈</button>
+          <button className="player-btn">📱</button>
+          <button className="player-btn">♥</button>
+          <button className="player-btn">⬜</button>
+        </div>
+      </footer>
+
+      {/* OVERLAY MENU APPS - PARA TROCA ENTRE APPS */}
+      <div
+        className={`overlay ${sidebarOpen ? 'open' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+      >
+        <div className="apps-menu">
+          <div
+            className="app-option"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleApp('focusbeat');
+              setSidebarOpen(false);
+            }}
+          >
+            <div className="app-icon">🎧</div>
+            <div className="app-title">FocusBeat</div>
+            <div className="app-desc">Música inteligente para foco e produtividade</div>
+          </div>
+          <div
+            className="app-option"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleApp('suno');
+              setSidebarOpen(false);
+            }}
+          >
+            <div className="app-icon">✨</div>
+            <div className="app-title">Suno AI</div>
+            <div className="app-desc">Gerador de músicas por IA</div>
           </div>
         </div>
       </div>
-    )
+    </div>
   );
 }
 
